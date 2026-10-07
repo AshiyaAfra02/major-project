@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from url_features import extract_features, features_dict
+from url_features import extract_features, features_dict, normalize_url
 
 log = logging.getLogger("cybershield.ml")
 
@@ -171,7 +171,7 @@ def url_signals(url: str) -> list[str]:
     return out
 
 
-def predict_url(url: str) -> dict:
+def _predict_url_model(url: str) -> dict:
     signals = url_signals(url)
     bundle = store.bundles.get("url")
 
@@ -226,6 +226,62 @@ def predict_url(url: str) -> dict:
         version=f"{bundle['kind']}-{bundle.get('version', '1.0')}",
         action=URL_ACTIONS.get(label, URL_ACTIONS["default"]),
     )
+
+
+# ---------- Trusted-domain allowlist (hybrid rule) ----------
+TRUSTED_DOMAINS = {
+    "google.com", "youtube.com", "wikipedia.org", "wikimedia.org", "github.com", "microsoft.com",
+    "apple.com", "amazon.com", "facebook.com", "instagram.com", "linkedin.com", "twitter.com",
+    "x.com", "reddit.com", "netflix.com", "stackoverflow.com", "mozilla.org", "python.org",
+    "nytimes.com", "bbc.com", "bbc.co.uk", "cloudflare.com", "paypal.com", "ebay.com",
+    "openai.com", "anthropic.com", "whatsapp.com", "zoom.us", "dropbox.com", "adobe.com",
+    "yahoo.com", "bing.com", "npmjs.com", "vercel.com", "huggingface.co", "kaggle.com",
+}
+
+USER_CONTENT_HOSTS = {
+    "sites.google.com", "docs.google.com", "drive.google.com", "forms.gle",
+    "storage.googleapis.com", "github.io", "blogspot.com", "wordpress.com",
+}
+
+def trusted_domain(url: str) -> str | None:
+    authority = re.split(r"[/?#]", normalize_url(url), maxsplit=1)[0]
+    host = authority.split("@")[-1].lower().split(":")[0].strip(".")
+    if not host:
+        return None
+
+    for bad in USER_CONTENT_HOSTS:
+        if host == bad or host.endswith("." + bad):
+            return None
+
+    for good in TRUSTED_DOMAINS:
+        if host == good or host.endswith("." + good):
+            return good
+
+    return None
+
+
+def predict_url(url: str) -> dict:
+    result = _predict_url_model(url)
+    domain = trusted_domain(url)
+
+    if domain and result["is_threat"]:
+        model_score = result["threat_score"]
+        return _pack(
+            label="benign",
+            is_threat=False,
+            confidence=0.95,
+            threat_score=0.05,
+            probabilities={"benign": 0.95, "phishing": 0.05},
+            reasons=[
+                f"Domain '{domain}' is on the trusted-domain allowlist.",
+                f"The ML model alone scored this URL {model_score:.2f} (overridden by the allowlist).",
+            ],
+            mock=result["mock"],
+            version=result["model_version"] + "+allowlist",
+            action=SAFE_ACTION,
+        )
+
+    return result
 
 
 LINK_RE = re.compile(r"https?://|www\.", re.IGNORECASE)
