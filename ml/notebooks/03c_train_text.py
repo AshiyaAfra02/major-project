@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
 
 ROOT = Path.cwd().resolve()
 sys.path.insert(0, str(ROOT / "ml"))
@@ -64,6 +65,54 @@ def main():
 
     pred = model.predict(X_test)
 
+    # Planned reporting: performance by source (email vs SMS)
+    by_source = {}
+
+    for src in sorted(test["source"].astype(str).unique()):
+        mask = test["source"].astype(str).values == src
+
+        by_source[src] = {
+            "n": int(mask.sum()),
+            "accuracy": float(
+                (pred[mask] == y_test.values[mask]).mean()
+            ),
+        }
+
+        from sklearn.metrics import f1_score
+
+        by_source[src]["f1"] = float(
+            f1_score(
+                y_test.values[mask],
+                pred[mask],
+                average="binary",
+                pos_label="1",
+                zero_division=0,
+            )
+        )
+
+    # Planned reporting: top phishing terms
+    coef = model.coef_[0]
+    terms = np.array(vectorizer.get_feature_names_out())
+    order = np.argsort(coef)
+
+    top_phishing_terms = terms[order[-15:]][::-1].tolist()
+    top_safe_terms = terms[order[:15]].tolist()
+
+    print("\nAccuracy by source:")
+    for src, values in by_source.items():
+        print(
+            f"  {src}: "
+            f"n={values['n']} "
+            f"accuracy={values['accuracy']:.4f} "
+            f"F1={values['f1']:.4f}"
+        )
+
+    print("\nTop phishing terms:")
+    print(top_phishing_terms)
+
+    print("\nTop safe terms:")
+    print(top_safe_terms)
+
     result = tu.evaluate(
         y_test,
         pred,
@@ -73,7 +122,12 @@ def main():
         task="text",
         dataset="Phishing Email + SMS",
         train_seconds=train_seconds,
-        pos_label="phishing" if "phishing" in classes else None,
+        pos_label="1" if "1" in classes else None,
+        extra={
+            "by_source": by_source,
+            "top_phishing_terms": top_phishing_terms,
+            "top_safe_terms": top_safe_terms,
+        },
     )
 
     # Rule baseline
@@ -163,8 +217,14 @@ def main():
     print()
     print(tu.summary_table(results).to_string(index=False))
 
+    pipeline = Pipeline([
+        ("tfidf", vectorizer),
+        ("clf", model),
+    ])
+
     bundle = {
         "kind": "tfidf_logreg",
+        "pipeline": pipeline,
         "vectorizer": vectorizer,
         "model": model,
         "classes": [str(c) for c in model.classes_],
