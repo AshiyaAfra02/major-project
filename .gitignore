@@ -1,0 +1,40 @@
+# ---------- Python ----------
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+
+# ---------- Node / Next.js ----------
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+
+# ---------- Secrets ----------
+.env
+.env.*
+!.env.example
+
+# ---------- Datasets ----------
+ml/data/raw/*
+ml/data/processed/*
+!ml/data/raw/.gitkeep
+!ml/data/processed/.gitkeep
+
+# ---------- Trained models / reports ----------
+ml/models/*
+ml/reports/*
+ml-service/models/*
+!ml/models/.gitkeep
+!ml/reports/.gitkeep
+!ml-service/models/.gitkeep
+
+# ---------- OS / editor ----------
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
