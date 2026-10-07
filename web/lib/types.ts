@@ -84,3 +84,36 @@ export interface ModelMetricRow {
   perClass: Record<string, { precision: number; recall: number; f1: number; support: number }>;
   extra: Record<string, unknown> | null;
 }
+export interface ScanResponse {
+  scan: ScanItem;
+  prediction: MlPrediction;
+  alert: AlertItem | null;
+}
+
+export interface NetworkRowResult {
+  index: number;
+  label: string;
+  confidence: number;
+  threat_score: number;
+  is_threat: boolean;
+  severity: string;
+}
+
+export interface NetworkSummary {
+  total_rows: number;
+  threats: number;
+  label_counts: Record<string, number>;
+  severity_counts: Record<string, number>;
+  recommended_actions: Record<string, string>;
+  results: NetworkRowResult[];
+  warnings: string[];
+  mock: boolean;
+  model_version: string;
+}
+
+export interface NetworkScanResponse {
+  scan: ScanItem;
+  alerts: AlertItem[];
+  summary: NetworkSummary;
+  evaluation: { labeled_rows: number; accuracy: number } | null;
+}
