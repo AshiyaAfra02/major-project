@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { BrainCircuit, CheckCircle2, RefreshCw, XCircle } from "lucide-react";
 import { useApi } from "@/lib/useApi";
@@ -6,12 +6,19 @@ import { Card, PageHeader, SeverityBadge, StatCard } from "@/components/ui";
 import { num, pct } from "@/lib/format";
 
 type ModelInfo = {
+  id: string;
+  modelKey: string;
   name: string;
-  version: string;
-  loaded: boolean;
+  task: string;
+  dataset: string;
+  isBaseline: boolean;
+  served: boolean;
+  nTest: number;
   accuracy?: number | null;
+  precisionMacro?: number | null;
+  recallMacro?: number | null;
+  f1Macro?: number | null;
   labels?: string[];
-  message?: string;
 };
 
 type ModelsResponse = {
@@ -19,7 +26,9 @@ type ModelsResponse = {
 };
 
 export default function ModelsPage() {
-  const { data, error, loading, reload } = useApi<ModelsResponse>("/api/models");
+  const { data, error, loading, reload } =
+    useApi<ModelsResponse>("/api/models");
+
   const models = data?.models ?? [];
 
   return (
@@ -29,7 +38,8 @@ export default function ModelsPage() {
         description="Live status and metadata for the machine-learning models used by CyberShield."
         actions={
           <button className="btn" onClick={reload} disabled={loading}>
-            <RefreshCw size={15} className={loading ? "animate-spin" : ""} /> Refresh
+            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+            Refresh
           </button>
         }
       />
@@ -42,31 +52,72 @@ export default function ModelsPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         {models.map((model) => (
-          <Card key={`${model.name}-${model.version}`} title={model.name} subtitle={`Version ${model.version}`}>
+          <Card
+            key={model.id}
+            title={model.name}
+            subtitle={`${model.task.toUpperCase()} • ${model.dataset}`}
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                {model.loaded ? (
+                {model.served ? (
                   <CheckCircle2 className="text-emerald-400" size={18} />
                 ) : (
                   <XCircle className="text-red-400" size={18} />
                 )}
-                <span className={model.loaded ? "text-emerald-300" : "text-red-300"}>
-                  {model.loaded ? "Loaded" : "Not loaded"}
+
+                <span
+                  className={
+                    model.served
+                      ? "text-emerald-300"
+                      : "text-red-300"
+                  }
+                >
+                  {model.served ? "Served / Loaded" : "Not served"}
                 </span>
               </div>
+
               <BrainCircuit size={20} className="text-soc-muted" />
+            </div>
+
+            <div className="mt-3 text-xs text-soc-muted">
+              Model key: <span className="text-soc-text">{model.modelKey}</span>
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
               <StatCard
                 label="Accuracy"
-                value={model.accuracy == null ? "—" : pct(model.accuracy)}
-                tone={model.accuracy != null && model.accuracy >= 0.9 ? "good" : "warn"}
+                value={
+                  model.accuracy == null
+                    ? "—"
+                    : pct(model.accuracy)
+                }
+                tone={
+                  model.accuracy != null && model.accuracy >= 0.9
+                    ? "good"
+                    : "warn"
+                }
               />
+
               <StatCard
                 label="Labels"
                 value={num(model.labels?.length ?? 0)}
                 hint={model.labels?.join(", ") || "None reported"}
+              />
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <StatCard
+                label="F1 Macro"
+                value={
+                  model.f1Macro == null
+                    ? "—"
+                    : pct(model.f1Macro)
+                }
+              />
+
+              <StatCard
+                label="Test Samples"
+                value={num(model.nTest)}
               />
             </div>
 
@@ -78,9 +129,9 @@ export default function ModelsPage() {
               </div>
             ) : null}
 
-            {model.message && (
+            {model.isBaseline && (
               <p className="mt-4 rounded-lg border border-soc-line bg-soc-bg/50 px-3 py-2 text-xs text-soc-muted">
-                {model.message}
+                Baseline model
               </p>
             )}
           </Card>
@@ -88,7 +139,9 @@ export default function ModelsPage() {
 
         {!loading && models.length === 0 && (
           <Card title="No model data">
-            <p className="text-sm text-soc-muted">The models API did not return any model records.</p>
+            <p className="text-sm text-soc-muted">
+              The models API did not return any model records.
+            </p>
           </Card>
         )}
       </div>
